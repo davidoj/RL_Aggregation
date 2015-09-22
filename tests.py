@@ -50,7 +50,7 @@ class TestMDPs(unittest.TestCase):
         ql_agg.episode(timeout = 1000)
 
         delta_r = sum(ql_raw.qValues[0] - p_raw.qValues[0])/4
-        delta_a = sum(ql_agg.qValues[0] - p_raw.qValues[0])/2
+        delta_a = sum(ql_agg.qValues[0] - p_agg.qValues[0])/2
 
         print("\nQ learning raw delta = {}, agg delta = {}".format(delta_r,delta_a))
         
@@ -68,7 +68,7 @@ class TestMDPs(unittest.TestCase):
         sl_agg.episode(timeout = 1000)
 
         delta_r = sum(sl_raw.qValues[0] - p_raw.qValues[0])/4
-        delta_a = sum(sl_agg.qValues[0] - p_raw.qValues[0])/2
+        delta_a = sum(sl_agg.qValues[0] - p_agg.qValues[0])/2
 
         print("\nSarsa(l) raw delta = {}, agg delta = {}".format(delta_r,delta_a))
         
