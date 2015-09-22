@@ -28,8 +28,8 @@ def setupESA():
     aggregation = {'n':2,0:0,1:1,2:0,3:1}
 
     qValues_raw = np.array([[gamma/(1-gamma**2),1/(1-gamma**2),
-                             gamma/(1-gamma**2),1/(1-gamma**2)]])
-    qValues_agg = np.array([[gamma/(1-gamma**2),1/(1-gamma**2)]])
+                             gamma/(1-gamma**2),1/(1-gamma**2)]]).reshape((4,1))
+    qValues_agg = np.array([[gamma/(1-gamma**2),1/(1-gamma**2)]]).reshape((2,1))
 
     p_raw = Problems.MDP(0,transitions,rewards,gamma,qValues=qValues_raw)
     p_agg = Problems.MDP(0,transitions,rewards,gamma,qValues=qValues_raw,
@@ -54,8 +54,8 @@ class TestMDPs(unittest.TestCase):
 
         print("\nQ learning raw delta = {}, agg delta = {}".format(delta_r,delta_a))
         
-        self.assertTrue(delta_r < 1)
-        self.assertTrue(delta_a < 1)
+        self.assertTrue(delta_r < 1e-1)
+        self.assertTrue(delta_a < 1e-1)
 
     def test_SL(self):
 
@@ -72,8 +72,8 @@ class TestMDPs(unittest.TestCase):
 
         print("\nSarsa(l) raw delta = {}, agg delta = {}".format(delta_r,delta_a))
         
-        self.assertTrue(delta_r < 1)
-        self.assertTrue(delta_a < 1)
+        self.assertTrue(delta_r < 1e-1)
+        self.assertTrue(delta_a < 1e-1)
                 
 
     def test_VI(self):
