@@ -22,6 +22,7 @@ class OnlineAgent:
         self.epsilon = epsilon
         self.problem = problem
         self.qValues = problem.getZeroQTable()
+        self.reset = self.problem.reset
         
     def executePolicy(self, state, epsilon=1e-1,tiebreak='random'):
 
@@ -50,22 +51,22 @@ class OnlineAgent:
             self.preUpdate(currentState,action)
                 
             if self.problem.isEpisodic:
-                terminal, nextStateRep, reward = self.problem.result(action,
-                                                                     self.aggregated,
-                                                                     debug=self.debug)
-               
+                terminal, nextState, reward = self.problem.result(action,
+                                                                  self.aggregated,
+                                                                  debug=self.debug)
+                
                 if terminal:
 
-                    self.update(currentState,nStateRep,action,reward,decayAlpha,
-                                 terminal=1)
+                    self.update(currentState,nextState,action,reward,decayAlpha,
+                                terminal=1)
                     self.problem.reset()
                     return i
             else:
                 
-                nextStateRep, reward = self.problem.result(action)
+                nextState, reward = self.problem.result(action)
                 
 
-            self.update(currentState,nextStateRep,action,reward,decayAlpha)
+            self.update(currentState,nextState,action,reward,decayAlpha)
 
         return i
     
@@ -86,7 +87,7 @@ class OnlineAgent:
 
             else:
                 e_lengths.append(timeout)
-                self.problem.reset()
+                self.reset()
                 print("Episode timed out {}".format(l))
         return e_avgs
 
@@ -159,6 +160,10 @@ class SarsaLambda(OnlineAgent):
         self.e = problem.getZeroQTable()
         self.counter = problem.getZeroQTable()
         self.lamda = lamda
+
+    def reset(self):
+        self.problem.reset
+        self.e = problem.getZeroQTable()
 
     def preUpdate(self,state,action):
         self.e *= self.problem.gamma*self.lamda
