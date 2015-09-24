@@ -9,7 +9,7 @@ import math
 import numpy as np
 import random
 from datetime import datetime
-#from Tiles import tiles
+from Tiles import tiles
 import Random_MDP
 #import Aggregation
 
@@ -106,18 +106,23 @@ class MDP:
 
 class MountainCar():
     """
-    The mountain car backend, with parameters as given by Sutton at
+    The mountain car problem, with parameters as given by Sutton at
     http://webdocs.cs.ualberta.ca/~sutton/MountainCar/MountainCar1.lisp.
+
+    The state can be represented in a variety of ways; the raw representation is
+    for agents that create their own state representations for continuous values 
+    while the other three work with table-driven agents.
     """
 
-        def __init__(self,randomStart=0,representation='raw',
-                     aggregation=None,
-                     numtilings=16,
-                     divisions=100):
+    def __init__(self,randomStart=0,representation='raw',
+                 aggregation=None,
+                 numtilings=16,
+                 divisions=10):
 
-        assert representation in {'raw','disc','aggr','tile'}, "invalid representation requested"
-        assert isinstance(randomStart,int), "invalid argument to randomStart"
-        assert isinstance(aggregation,dict) or aggregation == None, "invalid aggregation"
+        assert representation in {'raw','disc','aggr','tile'}, "representation must be: raw, disc, aggr, tile"
+        assert isinstance(randomStart,int), "randomStart must be int"
+        assert isinstance(divisions, int), "divisions must be int"
+
 
         self.x = -0.5
         self.xMin = -1.2
@@ -134,10 +139,9 @@ class MountainCar():
         self.randomStart = randomStart
 
         self.representation = representation
-        self.aggregation = aggregation
         self.divisions = divisions
 
-        self.actions = [-1,0,1]
+        self.actions = range(3) #this is converted to [-1,0,1] in the actual updates
 
         self.isEpisodic = True
 
@@ -147,9 +151,24 @@ class MountainCar():
             i = 1
             while 2**i < minMem:
                 i += 1
-            self.mem = 2**i
+            self.nStates = 2**i
 
-            self.ctable = tiles.CollisionTable(sizeval=self.mem)
+            self.ctable = tiles.CollisionTable(sizeval=self.nStates)
+
+            self.getAgentState = self.getTileState
+        
+        elif representation == 'disc':
+            self.nStates = self.divisions**2
+            self.getAgentState = self.getDiscState
+
+        elif representation == 'aggr':
+            assert isinstance(aggregation,dict), "invalid aggregation supplied"
+            self.aggregation = aggregation
+            self.nStates = self.aggregation['n']
+            self.getAgentState = self.getAggrState
+
+        elif representation == 'raw':
+            self.getAgentState = self.getRawState
         
     def reset(self):
         if self.randomStart:
@@ -159,25 +178,34 @@ class MountainCar():
             self.x = -0.5
             self.xdot = 0
     
-    def getStateForAgent(self):
-        if self.representation == 'raw':
-            return self.x, self.xdot
+    def getRawState(self):
+        return self.x, self.xdot
 
-        elif self.representation == 'disc':
-            x_index = math.floor((self.x-self.xMin)*(self.divisions-1)/(self.xGoal-self.xMin))
-            xdot_index = math.floor((self.xdot + self.xDotMax)*(self.divisions-1)/(2*self.xDotMax))
-            return x_index + xdot_index
+    def getDiscState(self):
+        x_index = (self.x-self.xMin)*(self.divisions-1)//(self.xGoal-self.xMin)
+        xdot_index = (self.xdot + self.xDotMax)*(self.divisions-1)//(2*self.xDotMax)
+        return x_index + self.divisions*xdot_index
 
-        elif self.representation == 'aggr':
-            if self.x >= self.xGoal:
-                return self.aggregation['term']
-            x_index = math.floor((self.x-self.xMin)*(self.divisions-1)/(self.xGoal-self.xMin))
-            xdot_index = math.floor((self.xdot + self.xDotMax)*(self.divisions-1)/(2*self.xDotMax))
-            return self.aggregation[(xdot_index,x_index)]
+    def getAggrState(self):
+        if self.x >= self.xGoal:
+            return self.aggregation['term']
+        x_index = (self.x-self.xMin)*(self.divisions-1)//(self.xGoal-self.xMin)
+        xdot_index = math.floor((self.xdot + self.xDotMax)*(self.divisions-1)/(2*self.xDotMax))
+        return self.aggregation[(xdot_index,x_index)]
  
-        elif self.representation == 'tile':
-            coords = (self.xDiv/(self.xGoal-self.xMin)*self.x, self.xDotDiv/(2*self.xDotMax)*self.xdot)
-            return tiles.tiles(self.numtilings,self.ctable,coords)
+    def getTileState(self):
+        coords = (self.divisions/(self.xGoal-self.xMin)*self.x, self.divisions/(2*self.xDotMax)*self.xdot)
+        return np.array(tiles.tiles(self.numtilings,self.ctable,coords))
+
+    def getZeroQTable(self):
+        if self.representation == 'raw':
+            raise TypeError("Requesting state count for continuous valued representation")
+        return np.zeros((self.nStates,len(self.actions)))
+
+    def setAlpha(self,alpha):
+        if self.representation == 'tile':
+            return alpha/self.numtilings
+        return alpha
 
     def bound_xdot(self):
         if abs(self.xdot)>self.xDotMax:
@@ -193,16 +221,17 @@ class MountainCar():
 
 
     def result(self,action):
-        x = self.x
-        xdot = self.xdot
-        return self.getStateForAgent(), 
+        self.compute_result(action)
+        if self.x >= self.xGoal:
+            return 1, self.getAgentState(), 0
+        return 0, self.getAgentState(), -1
 
     def compute_result(self,action):
-        action = self.actions[action]
+        real_action = action-1
 
         grav = - self.grav * np.cos(self.x*3)
         
-        self.xdot += (action + grav)*self.dt
+        self.xdot += (real_action + grav)*self.dt
         self.bound_xdot()
         self.x += self.xdot
         self.bound_x()

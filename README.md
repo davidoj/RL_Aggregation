@@ -1,6 +1,6 @@
 # About
 
-This is a collection of reinforcement learning agents and problems written for studying the behaviour of agents that use [state aggregation](http://arxiv.org/abs/1407.3341).
+This is a collection of reinforcement learning agents and problems written in python for studying the behaviour of agents that use [state aggregation](http://arxiv.org/abs/1407.3341).
 
 The agents it implements are:
  * Q-Learning
@@ -13,3 +13,5 @@ The problems implemented are:
  * Mountain car
 
 Some I/O and analysis utilities are included.
+
+It makes use of Sutton's tile-coding software, which requires Python 2.x

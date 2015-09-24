@@ -12,24 +12,30 @@ import collections
 import numbers
 import random
 
+random.seed(1)
 
 class OnlineAgent:
     """
     Generic online agent class; executes e-greedy policy, looks up values
     """
     
-    def __init__(self,problem,epsilon=1e-1):
+    def __init__(self,problem,epsilon=1e-1,tiles=False):
         self.epsilon = epsilon
         self.problem = problem
         self.qValues = problem.getZeroQTable()
         self.reset = self.problem.reset
+        if tiles:
+            self.getQValue = self.getQTile
+        else:
+            self.getQValue = self.getQDisc
         
-    def executePolicy(self, state, epsilon=1e-1,tiebreak='random'):
+        
+    def executePolicy(self, state ,tiebreak='first'):
 
         qs = self.getQArray(state)
             
         test = random.random()
-        if test < epsilon:
+        if test < self.epsilon:
             return random.choice(range(len(qs)))
         elif tiebreak == 'first':
             return np.where(qs==max(qs))[0][0]
@@ -46,14 +52,12 @@ class OnlineAgent:
 
             currentState = self.problem.getAgentState()
             
-            action = self.executePolicy(currentState,epsilon=self.epsilon)
+            action = self.executePolicy(currentState)
 
             self.preUpdate(currentState,action)
                 
             if self.problem.isEpisodic:
-                terminal, nextState, reward = self.problem.result(action,
-                                                                  self.aggregated,
-                                                                  debug=self.debug)
+                terminal, nextState, reward = self.problem.result(action)
                 
                 if terminal:
 
@@ -91,16 +95,11 @@ class OnlineAgent:
                 print("Episode timed out {}".format(l))
         return e_avgs
 
-    def getQValue(self,state,action):
-        '''
-        Get Q(s,a). S may be either an integer of list of ints if 
-        function approximation is used.
-        '''
-
-        if isinstance(state,collections.Container):
-            state=np.array(state)
-            return sum(self.qValues[state][action])
-        return self.qValues[state][action]
+    def getQDisc(self,state,action):
+        return self.qValues[state,action]
+        
+    def getQTile(self,state,action):
+        return sum(self.qValues[state,action])
 
     
     def getValue(self,state):
@@ -125,25 +124,21 @@ class QAgent(OnlineAgent):
         Q-learning update. State is either an integer or list(array) of integers
         '''
         if terminal:
-            nextQV = 0
+            nextV = 0
         else:
-            nextQVs = self.getQArray(nextState)
-            nextQV = max(nextQVs)
+            nextV = self.getValue(nextState)
 
         currentQV = self.getQValue(state,action)
 
-        delta = reward - currentQV + self.problem.gamma*nextQV
-
-        if isinstance(state,collections.Container):
-            state = np.array(state)
+        delta = reward - currentQV + self.problem.gamma*nextV
 
         if decayAlpha:
-            alpha =  self.alpha*((self.counter[state]+1)**(-1))
+            alpha =  self.alpha/(self.counter[state,action]+1)
         else:
             alpha = self.alpha
 
-        self.qValues[state][action] += alpha * delta
-        self.counter[state][action] += 1
+        self.qValues[state,action] += alpha * delta
+        self.counter[state,action] += 1
 
     def preUpdate(self,state,action):
         return
@@ -154,7 +149,7 @@ class SarsaLambda(OnlineAgent):
     SARSA with eligibility traces
     """
     def __init__(self,problem,alpha,lamda=0.5,policy='e-greedy',
-                 epsilon=0,debug=False):
+                 epsilon=1e-1,debug=False):
         OnlineAgent.__init__(self,problem,epsilon=epsilon)
         self.alpha = problem.setAlpha(alpha)
         self.e = problem.getZeroQTable()
@@ -170,9 +165,9 @@ class SarsaLambda(OnlineAgent):
 
         for a in self.problem.actions:
             if a == action:
-                self.e[state][a] = 1
+                self.e[state,a] = 1
             else:
-                self.e[state][a] = 0
+                self.e[state,a] = 0
 
     def update(self,state,nextState,action,reward,decayAlpha,terminal=0):
         '''
@@ -180,12 +175,12 @@ class SarsaLambda(OnlineAgent):
         '''
         nextAction = self.executePolicy(nextState,epsilon=self.epsilon)
         if terminal:
-            nextQV=0
+            nextV=0
         else:
-            nextQV = self.getQValue(nextState,nextAction)
+            nextV = self.getQValue(nextState,nextAction)
         
         delta = reward - self.getQValue(state,action)
-        delta += self.problem.gamma*nextQV
+        delta += self.problem.gamma*nextV
 
 
         if decayAlpha:
@@ -194,7 +189,7 @@ class SarsaLambda(OnlineAgent):
             alpha = self.alpha
 
         
-        self.counter[state][action] += 1
+        self.counter[state,action] += 1
         self.qValues += delta*alpha*self.e
 
 
@@ -241,8 +236,8 @@ class VIAgent():
 
         if isinstance(state,collections.Container):
             state=np.array(state)
-            return sum(self.qValues[state][action])
-        return self.qValues[state][action]
+            return sum(self.qValues[state,action])
+        return self.qValues[state,action]
 
     
     def getValue(self,state):
@@ -287,13 +282,13 @@ class VIAgent():
                 for action, action_value in enumerate(aValues):
                     temp = action_value
                     states = range(len(self.qValues))
-                    new_values = [self.transitionMatrix[action][state][nstate]* 
-                                  (self.rewardMatrix[action][state][nstate]+
+                    new_values = [self.transitionMatrix[action,state,nstate]* 
+                                  (self.rewardMatrix[action,state,nstate]+
                                   self.problem.gamma*self.getValue(nstate))
                                  for nstate in states ]
                     new_action_value = sum(new_values)
  
-                    self.qValues[state][action] = new_action_value
+                    self.qValues[state,action] = new_action_value
                     delta = max(delta, abs(temp-new_action_value))
                     counter += 1
             if counter >= self.timeout-1:
